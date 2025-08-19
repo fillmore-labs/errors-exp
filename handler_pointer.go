@@ -23,36 +23,36 @@ import "reflect"
 type pointerHandler[T error] struct {
 	noneHandler[T]
 	altType reflect.Type // alternative pointer type to a value type T, *T = altType
+	ptr     *T
 }
 
-func (h pointerHandler[T]) handleAssert(err error) (T, bool) {
+func (h *pointerHandler[T]) handleAssert(err error) (T, bool) {
 	if !reflect.TypeOf(err).AssignableTo(h.altType) {
 		return h.zero()
 	}
 
-	// pointer-value mismatch
-	errv := reflect.ValueOf(err)
-
 	// Handle the case where T is a value type, but err is a pointer type.
-	var ptr *T
-	reflect.ValueOf(&ptr).Elem().Set(errv) // This is equivalent to `ptr = err.(*T)` but works with the generic type `T`.
-
-	if ptr == nil { // Found a (*T)(nil) error
+	val := reflect.ValueOf(err)
+	if val.IsNil() { // Found a (*T)(nil) error
 		return h.zero()
 	}
 
-	return *ptr, true // Dereference the pointer to return the value.
+	// Dereference the pointer, and assert to T.
+	return typeAssert[T](val.Elem())
 }
 
-func (h pointerHandler[T]) handleAs(x interface{ As(any) bool }) (T, bool) {
+func (h *pointerHandler[T]) handleAs(x interface{ As(any) bool }) (T, bool) {
+	if h.ptr == nil {
+		h.ptr = new(T)
+	}
+
 	// When T is a value type (e.g., MyError), some `As` implementations might
 	// expect to populate a pointer to *T, requiring a pointer-to-pointer argument
 	// (e.g., target **MyError).
-	var ptr *T
-	if x.As(&ptr) && ptr != nil {
+	if x.As(&h.ptr) && h.ptr != nil {
 		// If `As` succeeds, ptr is now a valid *T.
 		// We dereference it to return the value type T.
-		return *ptr, true
+		return *h.ptr, true
 	}
 
 	return h.zero()

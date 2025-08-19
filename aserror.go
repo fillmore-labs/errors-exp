@@ -16,10 +16,9 @@
 
 package errors
 
-// HasError finds the first error in `err`'s tree that is of type `T`.
-// If a matching error is found, it is returned along with `true`.
-// Otherwise, the zero value for `T` (`nil` in case of a pointer type)
-// and `false` are returned.
+// AsError finds the first error in `err`'s tree that is of type `T`.
+// If a matching error is found, sets target to that error value and
+// returns `true`. Otherwise, it returns false.
 //
 // This function provides a generic, type-safe alternative to the standard library's `errors.As`.
 //
@@ -28,29 +27,30 @@ package errors
 //
 // An error is considered to be of type `T` if:
 //   - The error's concrete value is assignable to `T`.
-//   - The error has a method `As(any) bool`, and calling `As` with a pointer to a
-//     value of type `T` returns `true`. In this case, the `As` method is
-//     responsible for the result.
-func HasError[T error](err error) (T, bool) {
-	var ptr *T
+//   - The error has a method `As(any) bool`, and calling `As` with `target`
+//     returns `true`. In this case, the `As` method is responsible for setting
+//     the value of `target`.
+//
+// AsError panics if `target` is a nil pointer.
+func AsError[T error](err error, target *T) bool {
+	if target == nil {
+		panic("errors: target cannot be nil")
+	}
 
 	for err := range DepthFirstErrorTree(err) {
-		if target, ok := err.(T); ok {
-			return target, true
+		if result, ok := err.(T); ok {
+			*target = result
+
+			return true
 		}
 
 		if x, ok := err.(interface{ As(any) bool }); ok {
-			if ptr == nil {
-				ptr = new(T)
-			}
 			// Try the standard errors.As contract.
-			if x.As(ptr) {
-				return *ptr, true
+			if x.As(target) {
+				return true
 			}
 		}
 	}
 
-	var zero T
-
-	return zero, false
+	return false
 }

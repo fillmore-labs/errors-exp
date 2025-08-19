@@ -7,7 +7,7 @@
 [![Go Report Card](https://goreportcard.com/badge/fillmore-labs.com/exp/errors)](https://goreportcard.com/report/fillmore-labs.com/exp/errors)
 [![License](https://img.shields.io/github/license/fillmore-labs/errors-exp)](https://www.apache.org/licenses/LICENSE-2.0)
 
-`fillmore-labs.com/exp/errors` is an experimental Go library that provides two enhanced, generic alternatives to
+`fillmore-labs.com/exp/errors` is an experimental Go library that provides four enhanced, generic alternatives to
 `errors.As` for inspecting error chains with improved ergonomics and type safety.
 
 ## Motivation
@@ -21,17 +21,19 @@ linter.
 
 ## Function Overview
 
-This library provides two complementary functions:
+This library provides four functions in two complementary pairs, each building on Go's standard `errors.As`:
 
-- **`HasError`** - A drop-in, type-safe replacement for `errors.As` with better ergonomics
-- **`Has`** - An enhanced version that also handles pointer-value type mismatches automatically
+- **`HasError`** - Ergonomic and type-safe, returns the found error.
+- **`Has`** - The `HasError` API plus pointer-value mismatch handling.
 
-| Feature                         | `errors.As` | `HasError` | `Has` |
-| ------------------------------- | ----------- | ---------- | ----- |
-| Generic return type             | ❌          | ✅         | ✅    |
-| No target variable needed       | ❌          | ✅         | ✅    |
-| Interface support               | ✅          | ✅         | ✅    |
-| Pointer-value mismatch handling | ❌          | ❌         | ✅    |
+- **`AsError`** - The classic `errors.As` API with generic type safety.
+- **`As`** - The classic `errors.As` API plus pointer-value mismatch handling.
+
+| Feature                         | `errors.As` | `HasError` | `Has` | `AsError` | `As` |
+| ------------------------------- | ----------- | ---------- | ----- | --------- | ---- |
+| No target variable needed       | ❌          | ✅         | ✅    | ❌        | ❌   |
+| Pointer-value mismatch handling | ❌          | ❌         | ✅    | ❌        | ✅   |
+| Type safe generics              | ❌          | ✅         | ✅    | ✅        | ✅   |
 
 ## `HasError` - Enhanced Ergonomics
 
@@ -128,21 +130,23 @@ func Has[T error](err error) (T, bool)
 
 #### Prevents Common Bugs
 
-This mismatch would silently fail with `errors.As`:
+This mismatch would silently fail with `errors.As`. In the example below, `aes.NewCipher` returns an `aes.KeySizeError`
+value, but the check incorrectly looks for a pointer (`*aes.KeySizeError`):
 
 ```go
   key := []byte("My kung fu is better than yours")
   _, err := aes.NewCipher(key)
 
-  // With errors.As - this check fails silently.
+  // With errors.As, this check for a pointer type fails because the
+  // actual error is a value.
   var kse *aes.KeySizeError
   if errors.As(err, &kse) {
-    fmt.Printf("Wrong AES key size: %d bytes.\n", *kse)
+    // This code is never reached.
   }
 
-  // With Has - the check succeeds.
+  // With Has, the check succeeds because it handles the pointer-value mismatch.
   if kse, ok := Has[*aes.KeySizeError](err); ok {
-    fmt.Printf("AES keys must be 16, 24, or 32 bytes long, got %d bytes.\n", *kse)
+    fmt.Printf("Invalid AES key size: %d bytes. Key must be 16, 24, or 32 bytes.\n", *kse)
   }
 ```
 
@@ -165,6 +169,44 @@ Unlike `errors.As`, interface types provided to `Has` or `HasError` must embed t
   // With Has or HasError, the interface must embed `error`:
   if temp, ok := Has[interface { error; Temporary() bool }](err); ok && temp.Temporary() { /* handle temporary error */ }
 ```
+
+## Classic API with Enhanced Safety
+
+If you prefer the traditional `errors.As` API that uses target variables, this library provides enhanced versions that
+add the same benefits:
+
+### `AsError` - Type-Safe `errors.As`
+
+`AsError` provides generic type safety to prevent target variable type mismatches:
+
+```go
+func AsError[T error](err error, target *T) bool
+
+  // Usage
+  var myErr *MyError
+  if AsError(err, &myErr) {
+    // myErr is guaranteed to be the correct type
+    // No risk of type assertion bugs
+  }
+```
+
+### `As` - Type-Safe with Flexible Matching
+
+`As` combines type safety with the same pointer-value mismatch handling as `Has`:
+
+```go
+func As[T error](err error, target *T) bool
+
+  // Usage
+  var myErr *MyError
+  if As(err, &myErr) {
+    // Also handles pointer-value mismatches automatically
+    // Most robust option with familiar API
+  }
+```
+
+Both functions prevent common type-related bugs while maintaining the familiar `errors.As` API that some developers
+prefer.
 
 ## Migration Guide
 
@@ -190,6 +232,13 @@ If you suspect pointer-value mismatches are causing issues, replace `HasError` w
   // Switch to Has for more robust matching:
   if myErr, ok := Has[MyError](err); ok { /* ... */ }
 ```
+
+## Further Reading
+
+- Blog: [Understanding Go Error Types: Pointer vs. Value](https://blog.fillmore-labs.com/posts/errors-1/) - Background
+  on pointer-value type mismatches
+- [Go proposal: errors: As with type parameters](http://go.dev/issues/51945) - Community discussion on improving
+  `errors.As` with generics
 
 ## License
 

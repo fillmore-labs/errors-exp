@@ -22,11 +22,11 @@ import "iter"
 // It supports both single error unwrapping (`Unwrap() error`) and multi-error unwrapping (`Unwrap() []error`) mechanisms.
 // Nil errors or nil results from unwrapping are skipped during traversal.
 func DepthFirstErrorTree(root error) iter.Seq[error] {
-	stack := []error{root}
-
 	return func(yield func(error) bool) {
-		for len(stack) > 0 {
-			top := len(stack) - 1
+		base := [4]error{root} // Allocated on the stack
+		stack := base[:1]
+
+		for top := 0; top >= 0; top = len(stack) - 1 {
 			err := stack[top]
 			stack = stack[:top]
 

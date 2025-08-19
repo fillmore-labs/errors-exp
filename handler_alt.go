@@ -16,16 +16,14 @@
 
 package errors
 
-import (
-	"reflect"
-)
+import "reflect"
 
 type altHandler[T error] interface {
 	handleAssert(err error) (T, bool)
 	handleAs(x interface{ As(any) bool }) (T, bool)
 }
 
-func newAltHandler[T error]() altHandler[T] {
+func newAltHandler[T error](ptr *T) altHandler[T] {
 	targetType := reflect.TypeFor[T]()
 
 	isPointerType := targetType.Kind() == reflect.Pointer
@@ -47,12 +45,12 @@ func newAltHandler[T error]() altHandler[T] {
 	if isPointerType {
 		// altType is a value type.
 		// handle value alternatives for the queried pointer type
-		return valueHandler[T]{altType: altType}
+		return &valueHandler[T]{altType: altType}
 	}
 
 	// altType is a pointer type.
 	// handle pointer alternatives for the queried value type
-	return pointerHandler[T]{altType: altType}
+	return &pointerHandler[T]{altType: altType, ptr: ptr}
 }
 
 var errorType = reflect.TypeOf((*error)(nil)).Elem()

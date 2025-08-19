@@ -14,21 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package errors_test
+//go:build !go1.25
 
-import (
-	"crypto/aes"
-	"fmt"
+package errors
 
-	"fillmore-labs.com/exp/errors"
-)
+import "reflect"
 
-func ExampleHasError() {
-	key := []byte("My kung fu is better than yours")
-	_, err := aes.NewCipher(key)
+func typeAssert[T any](v reflect.Value) (T, bool) {
+	t, ok := v.Interface().(T)
 
-	if kse, ok := errors.Has[aes.KeySizeError](err); ok {
-		fmt.Printf("AES keys must be 16, 24, or 32 bytes long, got %d bytes.\n", kse)
-	}
-	// Output: AES keys must be 16, 24, or 32 bytes long, got 31 bytes.
+	return t, ok
 }

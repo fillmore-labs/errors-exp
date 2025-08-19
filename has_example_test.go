@@ -14,12 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package errors
+package errors_test
 
 import (
 	"crypto/aes"
 	"errors"
 	"fmt"
+
+	errorx "fillmore-labs.com/exp/errors"
 )
 
 func ExampleHas() {
@@ -33,9 +35,8 @@ func ExampleHas() {
 	}
 
 	// With Has - the check succeeds.
-	if kse, ok := Has[*aes.KeySizeError](err); ok {
+	if kse, ok := errorx.Has[*aes.KeySizeError](err); ok {
 		fmt.Printf("AES keys must be 16, 24, or 32 bytes long, got %d bytes.\n", *kse)
 	}
-
 	// Output: AES keys must be 16, 24, or 32 bytes long, got 31 bytes.
 }
