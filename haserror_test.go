@@ -23,58 +23,70 @@ import (
 	. "fillmore-labs.com/exp/errors"
 )
 
-func TestHasErrorMatch(t *testing.T) {
+func TestHasError(t *testing.T) {
 	t.Parallel()
 
-	err := func() error {
-		err := aes.KeySizeError(8)
-		return err
-	}()
+	errVal := aes.KeySizeError(8)
+	errPtr := &errVal
 
-	e1, ok := HasError[aes.KeySizeError](err)
+	t.Run("Match", func(t *testing.T) {
+		t.Parallel()
+		t.Run("Value", func(t *testing.T) {
+			t.Parallel()
 
-	if !ok {
-		t.Errorf("Expected to find aes.KeySizeError, but didn't.")
-	} else if e1 != aes.KeySizeError(8) {
-		t.Errorf("Expected aes.KeySizeError(8), but got %d", int(e1))
-	}
+			e, ok := HasError[aes.KeySizeError](errVal)
+			if !ok {
+				t.Fatal("Expected to find aes.KeySizeError, but didn't")
+			}
 
-	err2 := func() error {
-		err := aes.KeySizeError(8)
-		return &err
-	}()
+			if e != errVal {
+				t.Errorf("Expected %v, but got %v", errVal, e)
+			}
+		})
 
-	e2, ok := HasError[*aes.KeySizeError](err2)
+		t.Run("Pointer", func(t *testing.T) {
+			t.Parallel()
 
-	if !ok {
-		t.Errorf("Expected to find *aes.KeySizeError, but didn't.")
-	} else if *e2 != aes.KeySizeError(8) {
-		t.Errorf("Expected *aes.KeySizeError(8), but got %d", int(*e2))
-	}
+			e, ok := HasError[*aes.KeySizeError](errPtr)
+			if !ok {
+				t.Fatal("Expected to find *aes.KeySizeError, but didn't")
+			}
+
+			if e != errPtr {
+				t.Errorf("Expected %v, but got %v", errPtr, e)
+			}
+		})
+	})
+
+	t.Run("Mismatch", func(t *testing.T) {
+		t.Parallel()
+		t.Run("Value", func(t *testing.T) {
+			t.Parallel()
+
+			if _, ok := HasError[aes.KeySizeError](errPtr); ok {
+				t.Error("Expected to not find aes.KeySizeError, but did")
+			}
+		})
+
+		t.Run("Pointer", func(t *testing.T) {
+			t.Parallel()
+
+			if _, ok := HasError[*aes.KeySizeError](errVal); ok {
+				t.Error("Expected to not find *aes.KeySizeError, but did")
+			}
+		})
+	})
 }
 
-func TestHasErrorMismatch(t *testing.T) {
+func TestHasErrorAs(t *testing.T) {
 	t.Parallel()
 
-	err := func() error {
-		err := aes.KeySizeError(8)
-		return &err
-	}()
+	err := MyAsError(8)
+	want := MyValueError(8)
 
-	_, ok := HasError[aes.KeySizeError](err)
-
-	if ok {
-		t.Errorf("Expected to not find aes.KeySizeError, but did.")
-	}
-
-	err2 := func() error {
-		err := aes.KeySizeError(8)
-		return err
-	}()
-
-	_, ok = HasError[*aes.KeySizeError](err2)
-
-	if ok {
-		t.Errorf("Expected to not find *aes.KeySizeError, but did.")
+	if e, ok := HasError[MyValueError](err); !ok {
+		t.Errorf("Expected to find MyValueError, but didn't.")
+	} else if e != want {
+		t.Errorf("Expected %v, but got %v", want, e)
 	}
 }

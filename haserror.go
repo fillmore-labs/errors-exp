@@ -16,24 +16,36 @@
 
 package errors
 
-import goerrors "errors"
-
-// HasError finds the first error in `err`'s tree that has type `T`, and if one is found,
-// returns that error and true. Otherwise, it returns nil and false.
+// HasError finds the first error in `err`'s tree that is of type `T`.
+// If a matching error is found, it is returned along with `true`.
+// Otherwise, the zero value for `T` (`nil` in case of a pointer type)
+// and `false` are returned.
 //
-// The tree consists of `err` itself, followed by the errors obtained by repeatedly
-// calling its `Unwrap() error` or `Unwrap() []error` method. When `err` wraps multiple
-// errors, `HasError` examines `err` followed by a depth-first traversal of its children.
+// This function provides a generic, type-safe alternative to the standard library's `errors.As`.
 //
-// An error has the type `T` if the error's concrete value is assignable to `T`, or if
-// the error has a method As(any) bool such that As(*T) returns true. In the latter case,
-// the `As` method is responsible for the result.
+// The error tree is traversed depth-first, starting with `err` itself.
+// The tree is explored by repeatedly calling `Unwrap() error` or `Unwrap() []error`.
 //
-// An error type might provide an `As` method, so it can be treated as if it were a
-// different error type.
+// An error is considered to be of type `T` if:
+//   - The error's concrete value is assignable to `T`.
+//   - The error has a method `As(any) bool`, and `As(&T)` returns `true`. In this case,
+//     the `As` method is responsible for the result.
 func HasError[T error](err error) (T, bool) {
-	var target T
-	ok := goerrors.As(err, &target)
+	for err := range DepthFirstErrorTree(err) {
+		if target, ok := err.(T); ok {
+			return target, true
+		}
 
-	return target, ok
+		if x, ok := err.(interface{ As(any) bool }); ok {
+			// Try the standard errors.As contract.
+			var target T
+			if x.As(&target) {
+				return target, true
+			}
+		}
+	}
+
+	var zero T
+
+	return zero, false
 }

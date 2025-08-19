@@ -7,8 +7,8 @@
 [![Go Report Card](https://goreportcard.com/badge/fillmore-labs.com/exp/errors)](https://goreportcard.com/report/fillmore-labs.com/exp/errors)
 [![License](https://img.shields.io/github/license/fillmore-labs/errors-exp)](https://www.apache.org/licenses/LICENSE-2.0)
 
-`fillmore-labs.com/exp/errors` is an experimental Go library providing two enhanced, generic alternatives to `errors.As`
-for inspecting error chains with improved ergonomics and type safety.
+`fillmore-labs.com/exp/errors` is an experimental Go library that provides two enhanced, generic alternatives to
+`errors.As` for inspecting error chains with improved ergonomics and type safety.
 
 ## Motivation
 
@@ -37,8 +37,7 @@ This library provides two complementary functions:
 
 ### `HasError` Overview
 
-`HasError` is a direct, type-safe replacement for `errors.As` that uses Go generics for improved ergonomics and
-readability.
+`HasError` is a generic, type-safe replacement for `errors.As` that offers improved ergonomics and readability.
 
 ```go
 func HasError[T error](err error) (T, bool)
@@ -46,19 +45,37 @@ func HasError[T error](err error) (T, bool)
 
 ### `HasError` Key Benefits
 
-#### Eliminates Target Variables
+#### No Target Variable Needed
 
-Instead of this with `errors.As`:
+With `errors.As`, you must declare a variable beforehand:
 
 ```go
   var myErr *MyError
   if errors.As(err, &myErr) { /* ... use myErr */ }
 ```
 
-Write this with `HasError`:
+`HasError` allows you to declare and check in one line:
 
 ```go
   if myErr, ok := HasError[*MyError](err); ok { /* ... use myErr */ }
+```
+
+#### Improved Readability
+
+The syntax for `errors.As` can sometimes obscure intent, especially when you only need to check for an error's presence
+without using its value. Note how `errors.As` requires a **pointer** to a struct literal to check for a
+[**value** type](https://pkg.go.dev/crypto/x509#UnknownAuthorityError):
+
+```go
+  // This check is valid, but not immediately clear.
+  if errors.As(err, &x509.UnknownAuthorityError{}) { /* ... */ }
+```
+
+`HasError` makes the intent explicit and is easier to read:
+
+```go
+  // The type is clearly specified as a generic parameter.
+  if _, ok := HasError[x509.UnknownAuthorityError](err); ok { /* ... */ }
 ```
 
 #### Interface Support
@@ -69,17 +86,18 @@ Write this with `HasError`:
   // Single-line variant
   if e, ok := HasError[interface { error; Temporary() bool }](err); ok && e.Temporary() { /* handle temporary error */ }
 
-  // Or, using a named interface type:
+  // Or, using a named interface:
   type temporary interface { error; Temporary() bool }
-	if e, ok := HasError[temporary](err); ok && e.Temporary() { /* handle temporary error */}
+  if e, ok := HasError[temporary](err); ok && e.Temporary() { /* handle temporary error */ }
 ```
 
 ### When to Use `HasError`
 
-- You want better ergonomics than `errors.As`
-- You need exact type matching behavior
-- You're working with interfaces
-- You don't have pointer-value mismatch concerns
+Choose `HasError` when you need:
+
+- **Improved ergonomics** compared to `errors.As`.
+- **Strict type matching**, where pointers and values are treated as distinct types.
+- To check if an error in the chain **implements a specific interface**.
 
 ## `Has` - Pointer-Value Flexibility
 
@@ -96,50 +114,55 @@ func Has[T error](err error) (T, bool)
 
 #### Automatic Pointer-Value Matching
 
-`Has` finds matching errors regardless of pointer-value mismatches:
+`Has` automatically resolves pointer-value mismatches, finding errors that `errors.As` would miss:
 
 ```go
-	// Scenario 1: Looking for a value, but a pointer was wrapped
-	err := &MyError{msg: "oops"}
-	if myErr, ok := Has[MyError](err); ok { /* This matches! Has automatically handles the mismatch */ }
+  // Scenario 1: Looking for a value (MyError), but a pointer (*MyError) was wrapped.
+  err := &MyError{msg: "oops"}
+  if myErr, ok := Has[MyError](err); ok { /* This matches! */ }
 
-	// Scenario 2: Looking for a pointer, but a value was wrapped
-	err2 := MyError{msg: "oops"}
-	if myErr, ok := Has[*MyError](err2); ok { /* This also matches! */ }
+  // Scenario 2: Looking for a pointer (*MyError), but a value (MyError) was wrapped.
+  err2 := MyError{msg: "oops"}
+  if myErr, ok := Has[*MyError](err2); ok { /* This also matches! */ }
 ```
 
 #### Prevents Common Bugs
 
-Without `Has`, these mismatches silently fail:
+This mismatch would silently fail with `errors.As`:
 
 ```go
-	err := &MyError{msg: "oops"}
+  key := []byte("My kung fu is better than yours")
+  _, err := aes.NewCipher(key)
 
-	// With errors.As - this fails silently
-	var myErr MyError
-	if errors.As(err, &myErr) { /* false - type mismatch */ }
+  // With errors.As - this check fails silently.
+  var kse *aes.KeySizeError
+  if errors.As(err, &kse) {
+    fmt.Printf("Wrong AES key size: %d bytes.\n", *kse)
+  }
 
-	// With Has - this succeeds
-	if myErr, ok := Has[MyError](err); ok { /* true - automatic handling */ }
+  // With Has - the check succeeds.
+  if kse, ok := Has[*aes.KeySizeError](err); ok {
+    fmt.Printf("AES keys must be 16, 24, or 32 bytes long, got %d bytes.\n", *kse)
+  }
 ```
 
 ### When to Use `Has`
 
-- You want to prevent pointer-value mismatch bugs
-- You're unsure whether errors in your chain are wrapped as pointers or values
-- You want the most robust error detection
-- You need interface support with error embedding
+Choose `Has` when you want:
+
+- **The most robust error detection**, with all the ergonomic benefits of `HasError`.
+- **Automatic handling of pointer-value mismatches** to prevent subtle bugs caused by inconsistent error wrapping.
 
 ### Limitations
 
-Unlike `errors.As`, the interface type provided to `Has` must embed the `error` interface.
+Unlike `errors.As`, interface types provided to `Has` or `HasError` must embed the `error` interface.
 
 ```go
-  // OK with errors.As
+  // This is valid with errors.As:
   var temp interface{ Temporary() bool }
   if errors.As(err, &temp) && temp.Temporary() { /* handle temporary error */ }
 
-  // With Has, the interface must embed `error`:
+  // With Has or HasError, the interface must embed `error`:
   if temp, ok := Has[interface { error; Temporary() bool }](err); ok && temp.Temporary() { /* handle temporary error */ }
 ```
 
@@ -148,24 +171,24 @@ Unlike `errors.As`, the interface type provided to `Has` must embed the `error` 
 ### From `errors.As` to `HasError`
 
 ```go
-	// Before
-	var myErr *MyError
-	if errors.As(err, &myErr) { return fmt.Errorf("unexpected MyError: %w", myErr) }
+  // Before
+  var myErr *MyError
+  if errors.As(err, &myErr) { return fmt.Errorf("unexpected MyError: %w", myErr) }
 
-	// After
-	if myErr, ok := HasError[*MyError](err); ok { return fmt.Errorf("unexpected MyError: %w", myErr) }
+  // After
+  if myErr, ok := HasError[*MyError](err); ok { return fmt.Errorf("unexpected MyError: %w", myErr) }
 ```
 
 ### From `HasError` to `Has`
 
-If you're experiencing pointer-value mismatch issues:
+If you suspect pointer-value mismatches are causing issues, replace `HasError` with `Has`.
 
 ```go
-// If this sometimes fails unexpectedly
-if myErr, ok := HasError[MyError](err); ok { /* ... */ }
+  // If this check sometimes fails unexpectedly:
+  if myErr, ok := HasError[MyError](err); ok { /* ... */ }
 
-// Try this instead
-if myErr, ok := Has[MyError](err); ok { /* ... */ }
+  // Switch to Has for more robust matching:
+  if myErr, ok := Has[MyError](err); ok { /* ... */ }
 ```
 
 ## License

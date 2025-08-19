@@ -128,4 +128,4 @@ func (e MySimpleUnwrapError) Unwrap() error {
 	return MyValueError(e)
 }
 
-var _, _ error = MyUnwrapError(0), MySimpleUnwrapError(0)
+var _, _ error = MyUnwrapError(0), (*MySimpleUnwrapError)(nil)
